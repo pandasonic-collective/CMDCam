@@ -21,7 +21,9 @@ import team.creative.cmdcam.common.target.CamTarget;
 import team.creative.creativecore.common.util.math.vec.Vec1d;
 import team.creative.creativecore.common.util.math.vec.Vec3d;
 import team.creative.creativecore.common.util.math.vec.VecNd;
-import team.creative.creativecore.common.util.registry.exception.RegistryException;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import team.creative.creativecore.common.util.registry.NamedTypeRegistry;
 
 public class CamScene {
     
@@ -59,6 +61,26 @@ public class CamScene {
     @OnlyIn(Dist.CLIENT)
     public CamRun run;
     
+    public static final Codec<CamScene> CODEC = RecordCodecBuilder.create(instance ->
+        instance.group(
+            Codec.LONG.fieldOf("duration").forGetter(scene -> scene.duration),
+            Codec.INT.fieldOf("loop").forGetter(scene -> scene.loop),
+            Codec.STRING.fieldOf("mode").forGetter(scene -> CamMode.REGISTRY.getId(scene.mode)),
+            Codec.STRING.fieldOf("inter").forGetter(scene -> CamInterpolation.REGISTRY.getId(scene.interpolation)),
+            // TODO: Add codecs for lookTarget, pitchFollowConfig, yawFollowConfig, posTarget, posFollowConfig
+            Codec.BOOL.fieldOf("smooth_start").forGetter(scene -> scene.smoothBeginning),
+            Codec.INT.fieldOf("pitch_mode").forGetter(scene -> scene.pitchMode.ordinal()),
+            Codec.BOOL.fieldOf("d_timing").forGetter(scene -> scene.distanceBasedTiming),
+            Codec.list(CamPoint.CODEC).fieldOf("points").forGetter(scene -> scene.points)
+        ).apply(instance, (duration, loop, mode, inter, smooth_start, pitch_mode, d_timing, points) -> {
+            CamScene scene = new CamScene(duration, loop, mode, points, CamInterpolation.REGISTRY.get(inter));
+            scene.smoothBeginning = smooth_start;
+            scene.pitchMode = CamPitchMode.values()[pitch_mode];
+            scene.distanceBasedTiming = d_timing;
+            return scene;
+        })
+    );
+    
     public CamScene(long duration, int loop, String mode, List<CamPoint> points, CamInterpolation interpolation) {
         this.duration = duration;
         setMode(mode);
@@ -66,28 +88,28 @@ public class CamScene {
         this.interpolation = interpolation;
     }
     
-    public CamScene(CompoundTag nbt) throws RegistryException {
-        this.duration = nbt.getLong("duration");
-        this.loop = nbt.getInt("loop");
+    public CamScene(CompoundTag nbt) {
+        this.duration = nbt.getLong("duration").orElse(0L);
+        this.loop = nbt.getInt("loop").orElse(0);
         
-        setMode(nbt.getString("mode"));
-        this.interpolation = CamInterpolation.REGISTRY.get(nbt.getString("inter"));
+        setMode(nbt.getString("mode").orElse("default"));
+        this.interpolation = CamInterpolation.REGISTRY.get(nbt.getString("inter").orElse("linear"));
         
-        this.lookTarget = nbt.contains("look_target") ? CamTarget.load(nbt.getCompound("look_target")) : null;
-        this.pitchFollowConfig.load(nbt.getCompound("pitch"));
-        this.yawFollowConfig.load(nbt.getCompound("yaw"));
+        this.lookTarget = nbt.contains("look_target") ? CamTarget.load(nbt.getCompound("look_target").orElse(new CompoundTag())) : null;
+        this.pitchFollowConfig.load(nbt.getCompound("pitch").orElse(new CompoundTag()));
+        this.yawFollowConfig.load(nbt.getCompound("yaw").orElse(new CompoundTag()));
         
-        this.posTarget = nbt.contains("pos_target") ? CamTarget.load(nbt.getCompound("pos_target")) : null;
-        this.posFollowConfig.load(nbt.getCompound("pos"));
+        this.posTarget = nbt.contains("pos_target") ? CamTarget.load(nbt.getCompound("pos_target").orElse(new CompoundTag())) : null;
+        this.posFollowConfig.load(nbt.getCompound("pos").orElse(new CompoundTag()));
         
-        ListTag list = nbt.getList("points", 10);
+        ListTag list = nbt.getList("points").orElse(new ListTag());
         this.points = new ArrayList<>();
         for (Tag point : list)
             points.add(new CamPoint((CompoundTag) point));
         
-        this.smoothBeginning = nbt.getBoolean("smooth_start");
-        this.pitchMode = CamPitchMode.values()[nbt.getInt("pitch_mode")];
-        this.distanceBasedTiming = nbt.getBoolean("d_timing");
+        this.smoothBeginning = nbt.getBoolean("smooth_start").orElse(true);
+        this.pitchMode = CamPitchMode.values()[nbt.getInt("pitch_mode").orElse(0)];
+        this.distanceBasedTiming = nbt.getBoolean("d_timing").orElse(false);
     }
     
     public void setServerSynced() {

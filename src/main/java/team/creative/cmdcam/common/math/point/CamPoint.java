@@ -15,6 +15,8 @@ import team.creative.cmdcam.common.scene.attribute.CamAttribute;
 import team.creative.creativecore.common.util.math.vec.Vec3d;
 import team.creative.creativecore.common.util.math.vec.VecNd;
 import team.creative.creativecore.common.util.mc.TickUtils;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 public class CamPoint extends Vec3d {
     
@@ -58,11 +60,11 @@ public class CamPoint extends Vec3d {
     }
     
     public CamPoint(CompoundTag nbt) {
-        super(nbt.getDouble("x"), nbt.getDouble("y"), nbt.getDouble("z"));
-        this.rotationYaw = nbt.getDouble("rotationYaw");
-        this.rotationPitch = nbt.getDouble("rotationPitch");
-        this.roll = nbt.getDouble("roll");
-        this.zoom = nbt.getDouble("zoom");
+        super(nbt.getDouble("x").orElse(0.0), nbt.getDouble("y").orElse(0.0), nbt.getDouble("z").orElse(0.0));
+        this.rotationYaw = nbt.getDouble("rotationYaw").orElse(0.0);
+        this.rotationPitch = nbt.getDouble("rotationPitch").orElse(0.0);
+        this.roll = nbt.getDouble("roll").orElse(0.0);
+        this.zoom = nbt.getDouble("zoom").orElse(0.0);
     }
     
     public final Vec3d calculateViewVector() {
@@ -95,5 +97,17 @@ public class CamPoint extends Vec3d {
         nbt.putDouble("zoom", zoom);
         return nbt;
     }
+    
+    public static final Codec<CamPoint> CODEC = RecordCodecBuilder.create(instance ->
+        instance.group(
+            Codec.DOUBLE.fieldOf("x").forGetter(point -> point.x),
+            Codec.DOUBLE.fieldOf("y").forGetter(point -> point.y),
+            Codec.DOUBLE.fieldOf("z").forGetter(point -> point.z),
+            Codec.DOUBLE.fieldOf("rotationYaw").forGetter(point -> point.rotationYaw),
+            Codec.DOUBLE.fieldOf("rotationPitch").forGetter(point -> point.rotationPitch),
+            Codec.DOUBLE.fieldOf("roll").forGetter(point -> point.roll),
+            Codec.DOUBLE.fieldOf("zoom").forGetter(point -> point.zoom)
+        ).apply(instance, CamPoint::new)
+    );
     
 }

@@ -6,7 +6,6 @@ import net.minecraft.world.entity.player.Player;
 import team.creative.cmdcam.client.CMDCamClient;
 import team.creative.cmdcam.common.scene.CamScene;
 import team.creative.creativecore.common.network.CreativePacket;
-import team.creative.creativecore.common.util.registry.exception.RegistryException;
 
 public class StartPathPacket extends CreativePacket {
     
@@ -26,7 +25,7 @@ public class StartPathPacket extends CreativePacket {
             if (CMDCamClient.isPlaying())
                 CMDCamClient.stop();
             CMDCamClient.start(path);
-        } catch (RegistryException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }

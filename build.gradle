@@ -1,42 +1,45 @@
 plugins {
     id 'eclipse'
     id 'idea'
-    id 'com.modrinth.minotaur' version '2.+'
-    id 'net.neoforged.gradle.userdev' version '7.0.+'
+    id 'com.modrinth.minotaur' version '2.8.2'
+    id 'net.neoforged.moddev' version '2.0.72'
 }
 
-group= "team.creative" + project.mod_id
+group = "team.creative" + project.mod_id
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
-project.evaluationDependsOn(":CreativeCore")
+//project.evaluationDependsOn(":CreativeCore")
 
-runs {  
-    configureEach {
-        workingDirectory project.file('run')
-        systemProperty 'forge.logging.console.level', 'debug'
-        
-        modSource project.sourceSets.main
-        modSource project(":CreativeCore").sourceSets.main
+neoForge {
+    version = "21.5.0-beta"
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+        }
     }
-    
-    client {
+    mods {
+        cmdcam {
+            sourceSet sourceSets.main
+        }
     }
-    
-    server {
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = "NeoForged"
+        url = "https://maven.neoforged.net/releases"
+    }
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
     }
 }
 
 dependencies {
-    implementation "net.neoforged:neoforge:${forge_version}"
-    
-    implementation project(':CreativeCore')
-    
-    //minecraftLibrary "curse.maven:minema-resurrection-596719:4816846"
+    implementation "maven.modrinth:creativecore:${creativecore_version}"
 }
-
-modProperties = [ '    displayTest="NONE"' ]
-modDependencies = [
-    [ modId: "creativecore", type: "required", ordering: "NONE", side: "BOTH", versionRange: "[" + creativecore_version + ",)" ]
-]
-modMixins = [ "cmdcam.mixins.json" ]

@@ -1,0 +1,49 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "Client",
+      "presentation": {
+        "group": "Mod Development - CMDCam",
+        "order": 0
+      },
+      "projectName": "CMDCam",
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@H:\\_Github\\CMDCam\\build\\moddev\\clientRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@H:\\_Github\\CMDCam\\build\\moddev\\clientRunVmArgs.txt",
+        "-Dfml.modFolders\u003dcmdcam%%H:\\_Github\\CMDCam\\bin\\main"
+      ],
+      "cwd": "${workspaceFolder}\\run",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    },
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "Server",
+      "presentation": {
+        "group": "Mod Development - CMDCam",
+        "order": 1
+      },
+      "projectName": "CMDCam",
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@H:\\_Github\\CMDCam\\build\\moddev\\serverRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@H:\\_Github\\CMDCam\\build\\moddev\\serverRunVmArgs.txt",
+        "-Dfml.modFolders\u003dcmdcam%%H:\\_Github\\CMDCam\\bin\\main"
+      ],
+      "cwd": "${workspaceFolder}\\run",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    }
+  ]
+}

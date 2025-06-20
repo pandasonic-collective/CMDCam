@@ -8,9 +8,11 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.core.HolderLookup.Provider;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 import team.creative.cmdcam.CMDCam;
 import team.creative.cmdcam.common.scene.CamScene;
-import team.creative.creativecore.common.util.registry.exception.RegistryException;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 public class CamSaveData extends SavedData {
     
@@ -18,15 +20,35 @@ public class CamSaveData extends SavedData {
     
     private HashMap<String, CamScene> scenes = new HashMap<>();
     
+    // Codec for serialization
+    public static final Codec<CamSaveData> CODEC = RecordCodecBuilder.create(instance ->
+        instance.group(
+            Codec.unboundedMap(Codec.STRING, CamScene.CODEC)
+                .fieldOf("scenes").forGetter(data -> data.scenes)
+        ).apply(instance, map -> {
+            CamSaveData data = new CamSaveData();
+            data.scenes.putAll(map);
+            return data;
+        })
+    );
+    
+    public static final SavedDataType<CamSaveData> ID = new SavedDataType<>(
+        DATA_NAME,
+        CamSaveData::new,
+        CODEC
+    );
+    
     public CamSaveData() {}
     
     public CamSaveData(CompoundTag nbt, HolderLookup.Provider provider) {
-        for (String key : nbt.getAllKeys())
+        for (String key : nbt.keySet()) {
             try {
-                scenes.put(key, new CamScene(nbt.getCompound(key)));
-            } catch (RegistryException e) {
+                scenes.put(key, new CamScene(nbt.getCompound(key).orElse(new CompoundTag())));
+            } catch (Exception e) {
+                // Log or ignore invalid scenes
                 e.printStackTrace();
             }
+        }
     }
     
     public CamScene get(String key) {
@@ -51,7 +73,6 @@ public class CamSaveData extends SavedData {
         setDirty();
     }
     
-    @Override
     public CompoundTag save(CompoundTag nbt, Provider provider) {
         for (Entry<String, CamScene> entry : scenes.entrySet())
             nbt.put(entry.getKey(), entry.getValue().save(new CompoundTag()));

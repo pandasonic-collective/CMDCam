@@ -8,7 +8,6 @@ import team.creative.cmdcam.client.CMDCamClient;
 import team.creative.cmdcam.common.scene.CamScene;
 import team.creative.cmdcam.server.CMDCamServer;
 import team.creative.creativecore.common.network.CreativePacket;
-import team.creative.creativecore.common.util.registry.exception.RegistryException;
 
 public class SetPathPacket extends CreativePacket {
     
@@ -25,15 +24,13 @@ public class SetPathPacket extends CreativePacket {
     
     @Override
     public void executeClient(Player player) {
-        
         try {
             CamScene scene = new CamScene(nbt);
             CMDCamClient.set(scene);
             player.displayClientMessage(Component.translatable("scene.load", id), false);
-        } catch (RegistryException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
-        
     }
     
     @Override
@@ -45,10 +42,9 @@ public class SetPathPacket extends CreativePacket {
                 player.sendSystemMessage(Component.translatable("scene.save", id));
             } else
                 player.sendSystemMessage(Component.translatable("scene.save_perm", id));
-        } catch (RegistryException e) {
+        } catch (Exception e) {
             e.printStackTrace();
             player.sendSystemMessage(Component.translatable("scenes.save_fail"));
         }
-        
     }
 }

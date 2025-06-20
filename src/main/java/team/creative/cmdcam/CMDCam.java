@@ -7,7 +7,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
@@ -18,6 +20,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
@@ -27,13 +30,17 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import team.creative.cmdcam.client.CMDCamClient;
+import team.creative.cmdcam.client.CamEventHandlerClient;
 import team.creative.cmdcam.common.command.argument.CamModeArgument;
 import team.creative.cmdcam.common.command.argument.CamPitchModeArgument;
 import team.creative.cmdcam.common.command.argument.DurationArgument;
 import team.creative.cmdcam.common.command.argument.InterpolationArgument;
 import team.creative.cmdcam.common.command.argument.InterpolationArgument.AllInterpolationArgument;
+import team.creative.cmdcam.common.command.builder.PointArgumentBuilder;
 import team.creative.cmdcam.common.command.builder.SceneCommandBuilder;
 import team.creative.cmdcam.common.command.builder.SceneStartCommandBuilder;
+import team.creative.cmdcam.common.math.interpolation.CamInterpolation;
+import team.creative.cmdcam.common.math.point.CamPoint;
 import team.creative.cmdcam.common.packet.ConnectPacket;
 import team.creative.cmdcam.common.packet.GetPathPacket;
 import team.creative.cmdcam.common.packet.PausePathPacket;
@@ -95,13 +102,18 @@ public class CMDCam {
     
     private void commands(final RegisterCommandsEvent event) {
         LiteralArgumentBuilder<CommandSourceStack> camServer = Commands.literal("cam-server");
-        
+        addServerCommandsToServer(camServer, event);
+        LiteralArgumentBuilder<CommandSourceStack> cam = Commands.literal("cam");
+        addClientCommandsToServer(cam, event);
+    }
+
+    private void addServerCommandsToServer(LiteralArgumentBuilder<CommandSourceStack> camServer, RegisterCommandsEvent event) {
         SceneStartCommandBuilder.start(camServer, CMDCamServer.PROCESSOR);
-        
+
         LiteralArgumentBuilder<CommandSourceStack> get = Commands.literal("get");
         SceneCommandBuilder.scene(get, CMDCamServer.PROCESSOR);
         camServer.then(get);
-        
+
         event.getDispatcher().register(camServer.then(Commands.literal("stop").then(Commands.argument("players", EntityArgument.players()).executes(x -> {
             CreativePacket packet = new StopPathPacket();
             for (ServerPlayer player : EntityArgument.getPlayers(x, "players"))
@@ -142,5 +154,177 @@ public class CMDCam {
             }
             return 0;
         }))));
+    }
+    private void addClientCommandsToServer(LiteralArgumentBuilder<CommandSourceStack> cam, RegisterCommandsEvent event) {
+        SceneStartCommandBuilder.start(cam, CMDCamServer.PROCESSOR);
+        SceneCommandBuilder.scene(cam, CMDCamServer.PROCESSOR);
+
+        cam.then(Commands.literal("stop").executes(x -> {
+            try {
+                CMDCam.NETWORK.sendToClient(new StopPathPacket(), x.getSource().getPlayerOrException());
+            } catch (CommandSyntaxException e) {
+                x.getSource().sendFailure(Component.literal("Player not found"));
+            }
+            return 0;
+        }));
+
+        cam.then(Commands.literal("pause").executes(x -> {
+            try {
+                CMDCam.NETWORK.sendToClient(new PausePathPacket(), x.getSource().getPlayerOrException());
+            } catch (CommandSyntaxException e) {
+                x.getSource().sendFailure(Component.literal("Player not found"));
+            }
+            return 0;
+        }));
+
+        cam.then(Commands.literal("resume").executes(x -> {
+            try {
+                CMDCam.NETWORK.sendToClient(new ResumePathPacket(), x.getSource().getPlayerOrException());
+            } catch (CommandSyntaxException e) {
+                x.getSource().sendFailure(Component.literal("Player not found"));
+            }
+            return 0;
+        }));
+
+        cam.then(Commands.literal("show").executes(x -> {
+            try {
+                CMDCam.NETWORK.sendToClient(new CreativePacket() {
+                    @Override
+                    public void executeClient(Player player) {
+                        CamEventHandlerClient.SHOW_ACTIVE_INTERPOLATION = true;
+                        player.displayClientMessage(Component.translatable("scene.interpolation.show_active"), false);
+                    }
+                    
+                    @Override
+                    public void executeServer(ServerPlayer player) {}
+                }, x.getSource().getPlayerOrException());
+            } catch (CommandSyntaxException e) {
+                x.getSource().sendFailure(Component.literal("Player not found"));
+            }
+            return 0;
+        }).then(Commands.argument("interpolation", InterpolationArgument.interpolationAll()).executes(x -> {
+            String interpolation = StringArgumentType.getString(x, "interpolation");
+            try {
+                CMDCam.NETWORK.sendToClient(new CreativePacket() {
+                    @Override
+                    public void executeClient(Player player) {
+                        if (!interpolation.equalsIgnoreCase("all")) {
+                            CamInterpolation.REGISTRY.get(interpolation).isRenderingEnabled = true;
+                            player.displayClientMessage(Component.translatable("scene.interpolation.show", interpolation), false);
+                        } else {
+                            for (CamInterpolation movement : CamInterpolation.REGISTRY.values())
+                                movement.isRenderingEnabled = true;
+                            player.displayClientMessage(Component.translatable("scene.interpolation.show_all"), false);
+                        }
+                    }
+                    
+                    @Override
+                    public void executeServer(ServerPlayer player) {}
+                }, x.getSource().getPlayerOrException());
+            } catch (CommandSyntaxException e) {
+                x.getSource().sendFailure(Component.literal("Player not found"));
+            }
+            return 0;
+        })));
+
+        cam.then(Commands.literal("hide").executes(x -> {
+            try {
+                CMDCam.NETWORK.sendToClient(new CreativePacket() {
+                    @Override
+                    public void executeClient(Player player) {
+                        CamEventHandlerClient.SHOW_ACTIVE_INTERPOLATION = false;
+                        player.displayClientMessage(Component.translatable("scene.interpolation.hide_active"), false);
+                    }
+                    
+                    @Override
+                    public void executeServer(ServerPlayer player) {}
+                }, x.getSource().getPlayerOrException());
+            } catch (CommandSyntaxException e) {
+                x.getSource().sendFailure(Component.literal("Player not found"));
+            }
+            return 0;
+        }).then(Commands.argument("interpolation", InterpolationArgument.interpolationAll()).executes(x -> {
+            String interpolation = StringArgumentType.getString(x, "interpolation");
+            try {
+                CMDCam.NETWORK.sendToClient(new CreativePacket() {
+                    @Override
+                    public void executeClient(Player player) {
+                        if (!interpolation.equalsIgnoreCase("all")) {
+                            CamInterpolation.REGISTRY.get(interpolation).isRenderingEnabled = false;
+                            player.displayClientMessage(Component.translatable("scene.interpolation.hide", interpolation), false);
+                        } else {
+                            for (CamInterpolation movement : CamInterpolation.REGISTRY.values())
+                                movement.isRenderingEnabled = false;
+                            CamEventHandlerClient.SHOW_ACTIVE_INTERPOLATION = false;
+                            player.displayClientMessage(Component.translatable("scene.interpolation.hide_all"), false);
+                        }
+                    }
+                    
+                    @Override
+                    public void executeServer(ServerPlayer player) {}
+                }, x.getSource().getPlayerOrException());
+            } catch (CommandSyntaxException e) {
+                x.getSource().sendFailure(Component.literal("Player not found"));
+            }
+            return 0;
+        })));
+
+        cam.then(Commands.literal("list").executes(x -> {
+            Collection<String> names = CMDCamServer.getSavedPaths(x.getSource().getLevel());
+            x.getSource().sendSystemMessage(Component.translatable("scenes.list", names.size(), String.join(", ", names)));
+            return 0;
+        }));
+
+        cam.then(Commands.literal("load").then(Commands.argument("path", StringArgumentType.string()).executes(x -> {
+            String pathArg = StringArgumentType.getString(x, "path");
+            try {
+                CMDCam.NETWORK.sendToClient(new GetPathPacket(pathArg), x.getSource().getPlayerOrException());
+            } catch (CommandSyntaxException e) {
+                x.getSource().sendFailure(Component.literal("Player not found"));
+            }
+            return 0;
+        })));
+
+        cam.then(Commands.literal("save").then(Commands.argument("path", StringArgumentType.string()).executes(x -> {
+            String pathArg = StringArgumentType.getString(x, "path");
+            CamScene scene = CMDCamServer.get(x.getSource().getLevel(), pathArg);
+            if (scene == null) {
+                scene = CamScene.createDefault();
+            }
+            CMDCamServer.set(x.getSource().getLevel(), pathArg, scene);
+            x.getSource().sendSuccess(() -> Component.translatable("scenes.save", pathArg), false);
+            return 0;
+        })));
+
+        cam.then(new PointArgumentBuilder("follow_center", (x, y) -> {
+            try {
+                CMDCam.NETWORK.sendToClient(new CreativePacket() {
+                    @Override
+                    public void executeClient(Player player) {
+                        CMDCamClient.setTargetMarker(y);
+                    }
+                    
+                    @Override
+                    public void executeServer(ServerPlayer player) {}
+                }, x.getSource().getPlayerOrException());
+            } catch (CommandSyntaxException e) {
+                x.getSource().sendFailure(Component.literal("Player not found"));
+            }
+        }, CMDCamServer.PROCESSOR).executes(x -> {
+            try {
+                CMDCam.NETWORK.sendToClient(new CreativePacket() {
+                    @Override
+                    public void executeClient(Player player) {
+                        CMDCamClient.setTargetMarker(CamPoint.createLocal());
+                    }
+                    
+                    @Override
+                    public void executeServer(ServerPlayer player) {}
+                }, x.getSource().getPlayerOrException());
+            } catch (CommandSyntaxException e) {
+                x.getSource().sendFailure(Component.literal("Player not found"));
+            }
+            return 0;
+        }));
     }
 }

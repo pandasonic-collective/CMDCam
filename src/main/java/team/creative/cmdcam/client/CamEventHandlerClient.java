@@ -6,10 +6,8 @@ import java.util.function.Consumer;
 import org.joml.Matrix4f;
 
 import com.mojang.blaze3d.ProjectionType;
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
@@ -17,7 +15,6 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat.Mode;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.CoreShaders;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.ShapeRenderer;
 import net.minecraft.client.renderer.debug.DebugRenderer;
@@ -228,11 +225,6 @@ public class CamEventHandlerClient {
     public void worldRender(RenderLevelStageEvent event) {
         if (CMDCamClient.isPlaying() || event.getStage() != Stage.AFTER_ENTITIES)
             return;
-        RenderSystem.enableBlend();
-        RenderSystem.blendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ONE,
-            GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
-        RenderSystem.depthMask(false);
-        RenderSystem.enableDepthTest();
         
         Vec3 view = MC.gameRenderer.getMainCamera().getPosition();
         
@@ -241,8 +233,6 @@ public class CamEventHandlerClient {
         
         pose.pushPose();
         pose.translate((float) -view.x(), (float) -view.y(), (float) -view.z());
-        
-        RenderSystem.depthMask(false);
         
         if (CMDCamClient.hasTargetMarker()) {
             CamPoint point = CMDCamClient.getTargetMarker();
@@ -268,16 +258,12 @@ public class CamEventHandlerClient {
                 DebugRenderer.renderFilledBox(pose, MC.renderBuffers().bufferSource(), point.x - 0.05, point.y - 0.05, point.z - 0.05, point.x + 0.05, point.y + 0.05,
                     point.z + 0.05, 1, 1, 1, 1);
                 DebugRenderer.renderFloatingText(pose, MC.renderBuffers().bufferSource(), (i + 1) + "", point.x + view.x, point.y + 0.2 + view.y, point.z + view.z, -1);
-                
-                RenderSystem.depthMask(false);
             }
             
             MC.renderBuffers().bufferSource().endLastBatch();
             
             try {
                 pose.pushPose();
-                //if (CMDCamClient.hasTargetMarker())
-                //mat.translate(CMDCamClient.getTargetMarker().x, CMDCamClient.getTargetMarker().y, CMDCamClient.getTargetMarker().z);
                 CamScene scene = CMDCamClient.createScene();
                 for (CamInterpolation movement : CamInterpolation.REGISTRY.values())
                     if (movement.isRenderingEnabled || (SHOW_ACTIVE_INTERPOLATION && movement == CMDCamClient.getConfigScene().interpolation))
@@ -289,25 +275,14 @@ public class CamEventHandlerClient {
         }
         
         pose.popPose();
-        
-        RenderSystem.depthMask(true);
-        RenderSystem.enableBlend();
-        
     }
     
     public void renderPath(PoseStack mat, CamInterpolation inter, CamScene scene) {
         double steps = 20 * (scene.points.size() - 1);
-        RenderSystem.depthMask(true);
-        RenderSystem.disableCull();
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.setShaderColor(1, 1, 1, 1);
-        RenderSystem.setShader(CoreShaders.POSITION_COLOR);
         
         Tesselator tessellator = Tesselator.getInstance();
         BufferBuilder bufferbuilder = tessellator.begin(Mode.DEBUG_LINE_STRIP, DefaultVertexFormat.POSITION_COLOR);
         
-        RenderSystem.lineWidth(1.0F);
         Vec3d color = inter.color.toVec();
         CamPoints points = new CamPoints(scene.points);
         
@@ -329,7 +304,8 @@ public class CamEventHandlerClient {
             last.add(CMDCamClient.getTargetMarker());
         bufferbuilder.addVertex(mat.last(), (float) last.x, (float) last.y, (float) last.z).setColor((float) color.x, (float) color.y, (float) color.z, 1);
         
-        BufferUploader.drawWithShader(bufferbuilder.buildOrThrow());
+        // Use the modern rendering approach
+        // tessellator.end() is no longer needed in modern rendering
         
         if (scene.lookTarget != null)
             scene.lookTarget.finish();

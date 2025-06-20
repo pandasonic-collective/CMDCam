@@ -52,10 +52,11 @@ public abstract class CamMode {
         if (camera instanceof Player)
             ((Player) camera).getAbilities().flying = true;
         
-        camera.absMoveTo(point.x, point.y - camera.getEyeHeight(), point.z, (float) point.rotationYaw, (float) point.rotationPitch);
+        camera.setPos(point.x, point.y - camera.getEyeHeight(), point.z);
+        camera.setYRot((float) point.rotationYaw);
+        camera.setXRot((float) point.rotationPitch);
         camera.yRotO = (float) point.rotationYaw;
         camera.xRotO = (float) point.rotationPitch;
-        camera.moveTo(point.x, point.y - camera.getEyeHeight(), point.z, (float) point.rotationYaw, (float) point.rotationPitch);
     }
     
     public abstract boolean outside();
